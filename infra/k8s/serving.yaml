@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragops
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels: {app: ragops}
+  template:
+    metadata:
+      labels: {app: ragops}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: api
+          image: ghcr.io/example/ragops:replace-me
+          ports: [{containerPort: 8000, name: http}]
+          env:
+            - name: RAG_PROVIDER
+              value: extractive
+            - name: RAG_LLM_URL
+              valueFrom:
+                secretKeyRef: {name: ragops, key: llm-url, optional: true}
+            - name: RAG_LLM_API_KEY
+              valueFrom:
+                secretKeyRef: {name: ragops, key: llm-api-key, optional: true}
+          readinessProbe: {httpGet: {path: /ready, port: http}}
+          livenessProbe: {httpGet: {path: /health, port: http}}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: ragops}
+spec:
+  selector: {app: ragops}
+  ports: [{name: http, port: 80, targetPort: http}]
